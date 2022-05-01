@@ -2,9 +2,11 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 #define SERVER_PORT 8088
 
@@ -12,6 +14,11 @@ static int debug = 1;
 
 int get_line(int sock, char *buf, int size);
 void do_http_request(int client_sock);
+void do_http_response(int client_sock, const char* path);
+void not_found(int client_sock);
+void headers(int client_sock, FILE* resource);
+void cat(int client_sock, FILE* resource);
+void inner_error(int client_sock);
 
 int main() {
 
@@ -54,6 +61,10 @@ int main() {
 
         //处理http请求
         do_http_request(client_sock);
+        
+        //执行http响应
+        //do_http_response(client_sock);
+
         close(client_sock);
     }
 
@@ -69,6 +80,8 @@ void do_http_request(int client_sock) {
     int len = 0;
     char buf[256];
     char path[256];
+
+    struct stat st;
 
     //1. 读取请求行
     len = get_line(client_sock, buf, sizeof(buf));
@@ -117,6 +130,21 @@ void do_http_request(int client_sock) {
         if(debug) printf("path: %s\n", path);
 
         //执行http响应
+        //判断文件是否存在，如果存在就响应200 OK，同时发送相应的html文件，如果不存在，就响应404 NOT FOUND
+        if(stat(path, &st) == -1) {       //文件不存在或出错
+            fprintf(stderr, "stat %s failed. reason: %s\n", path, strerror(errno));
+            not_found(client_sock);
+        }
+        else {     //文件存在
+
+            if(S_ISDIR(st.st_mode)) {   //为一个目录
+                strcat(path, "/index.html");
+            }
+
+            do_http_response(client_sock, path);
+        }
+
+        
     }
     else {
         //400 Bad Request
@@ -128,6 +156,118 @@ void do_http_request(int client_sock) {
         len = get_line(client_sock, buf, sizeof(buf));
         if(debug) printf("read: %s\n", buf);
     } while (len > 0);
+
+}
+
+//响应http请求
+void do_http_response(int client_sock, const char* path) {
+
+    FILE* resource = fopen(path, "r");
+
+    if(resource == NULL) {
+        not_found(client_sock);
+        return ;
+    }
+
+    //1. 发送http头部
+    headers(client_sock, resource);
+
+    //2. 发送http body
+    cat(client_sock, resource);
+
+    fclose(resource);
+}
+
+/****************************
+ *返回关于响应文件信息的http 头部
+ *输入： 
+ *     client_sock - 客服端socket 句柄
+ *     resource    - 文件的句柄 
+ *返回值： 成功返回0 ，失败返回-1
+******************************/
+void headers(int client_sock, FILE* resource) {
+    struct stat st;
+    char tmp[64];
+    char buf[1024] = {0};
+    strcpy(buf, "HTTP/1.1 200 OK\r\n");
+    strcat(buf, "Server: Jude Server\r\n");
+    strcat(buf, "Content-Type: text/html\r\n");
+    strcat(buf, "Connection: Close\r\n");
+
+    if(fstat(fileno(resource), &st) == -1) {
+        //内部出错
+        inner_error(client_sock);
+    }
+
+    snprintf(tmp, 64, "Content_Length: %ld\r\n\r\n", st.st_size);
+    strcat(buf, tmp);
+
+    if(debug) fprintf(stdout, "header: %s\n", buf);
+
+    if(send(client_sock, buf, strlen(buf), 0) < 0) {
+        fprintf(stderr, "send failed. data: %s, reason: %s\n", buf, strerror(errno));
+    }
+}
+
+/****************************
+ *说明：实现将html文件的内容按行
+        读取并送给客户端
+ ****************************/
+void cat(int client_sock, FILE* resource) {
+    char buf[1024];
+
+    fgets(buf, sizeof(buf), resource);
+    
+    while(!feof(resource)) {
+        int len = write(client_sock, buf, strlen(buf));
+        
+        if(len < 0) {   //发送body的过程中出现问题
+            fprintf(stderr, "send body error. reason: %s\n", strerror(errno));
+            break;
+        }
+
+        if(debug) fprintf(stdout, "%s", buf);
+        fgets(buf, sizeof(buf), resource);
+    }
+}
+
+
+void do_http_response(int client_sock) {
+
+    const char* main_header = "HTTP/1.1 200 OK\r\n\
+                               Server: Jude Server\r\n\
+                               Content-Type: text/html\r\n\
+                               Connection: Close\r\n";    
+
+    const char* welcome_content = "<!DOCTYPE html>\n\
+                                   <html>\n\
+                                   <head>\n\
+                                   <meta charset=\"UTF-8\">\n\
+                                   <title>Hello World</title>\n\
+                                   </head>\n\
+                                   <body>\n\
+                                   <p>Hello World!!!</p>\n\
+                                   </body>\n\
+                                   </html>";
+
+    //1. 送main_header
+    int len = write(client_sock, main_header, strlen(main_header));
+
+    if(debug) fprintf(stdout, "---do_http_response...");
+    if(debug) fprintf(stdout, "write[%d]: %s\n", len, main_header);
+
+    //2. 生成Content_Length行并发送
+    char send_buf[64];
+    int wc_len = strlen(welcome_content);
+    len = snprintf(send_buf, 64, "Content_Length: %d\r\n\r\n", wc_len);
+    len = write(client_sock, send_buf, len);
+
+    if(debug) fprintf(stdout, "write[%d]: %s", len, send_buf);
+
+    //3. 发送html内容
+    len = write(client_sock, welcome_content, wc_len);
+    
+    if(debug) fprintf(stdout, "write[%d]: %s\n", len, welcome_content);
 
 }
 
@@ -174,4 +314,44 @@ int get_line(int sock, char *buf, int size) {
         buf[count] = '\0';
 
     return count;
+}
+
+void not_found(int client_sock) {
+    const char* reply = "HTTP/1.0 404 NOT FOUND\r\n\
+                        Content-Type: text/html\r\n\
+                        \r\n\
+                        <HTML>\
+                        <HEAD>\
+                        <TITLE>NOT FOUND</TITLE>\
+                        </HEAD>\
+                        <BODY>\
+                            <P>The server could not fulfill your request because the resource specified is unavailable or nonexistent.\
+                        </BODY>\
+                        </HTML>";
+
+    int len = write(client_sock, reply, strlen(reply));
+
+    if(len <= 0) {
+        fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+    }
+}
+
+void inner_error(int client_sock) {
+    const char* reply = "HTTP/1.0 500 Internal Sever Error\r\n\
+                        Content-Type: text/html\r\n\
+                        \r\n\
+                        <HTML>\
+                        <HEAD>\
+                        <TITLE>Inner Error</TITLE>\
+                        </HEAD>\
+                        <BODY>\
+                            <P>服务器内部出错\
+                        </BODY>\
+                        </HTML>";
+
+    int len = write(client_sock, reply, strlen(reply));
+
+    if(len <= 0) {
+        fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+    }
 }
