@@ -15,13 +15,15 @@ static int debug = 1;
 int get_line(int sock, char *buf, int size);
 void do_http_request(int client_sock);
 void do_http_response(int client_sock, const char* path);
-void not_found(int client_sock);
+void bad_request(int client_sock);       //400
+void not_found(int client_sock);        //404
+void inner_error(int client_sock);      //500
+void unimplemented(int client_sock);    //501
 int headers(int client_sock, FILE* resource, const char* statu);
 void cat(int client_sock, FILE* resource);
-void inner_error(int client_sock);
 
 int main() {
-
+    
     //1. 创建信箱
     int sock = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -101,7 +103,7 @@ void do_http_request(int client_sock) {
             if(debug) printf("The request method is GET\n");
         }
         else {
-            //501 Method Not Implement
+            unimplemented(client_sock); //请求未实现
             fprintf(stderr, "WARNING! Other Method!");
         }
 
@@ -148,7 +150,7 @@ void do_http_request(int client_sock) {
     }
     else {
         //400 Bad Request
-        //bad_request(cline_sock);
+        bad_request(client_sock);
     }
 
     //2. 读取头部字段，直到遇到空行
@@ -324,6 +326,26 @@ int get_line(int sock, char *buf, int size) {
     return count;
 }
 
+void bad_request(int client_sock) {
+    const char* reply = "HTTP/1.0 400 BAD REQUEST\r\n\
+                        Content-Type: text/html\r\n\
+                        \r\n\
+                        <HTML>\
+                        <HEAD>\
+                        <TITLE>BAD REQUEST</TITLE>\
+                        </HEAD>\
+                        <BODY>\
+                            <P>Your browser sent a bad request! \
+                        </BODY>\
+                        </HTML>";
+
+    int len = write(client_sock, reply, strlen(reply));
+
+    if(len <= 0) {
+        fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+    }
+}
+
 void not_found(int client_sock) {
 
     FILE* resource = fopen("./html_docs/404.html", "r");
@@ -369,6 +391,26 @@ void inner_error(int client_sock) {
                         </HEAD>\
                         <BODY>\
                             <P>服务器内部出错\
+                        </BODY>\
+                        </HTML>";
+
+    int len = write(client_sock, reply, strlen(reply));
+
+    if(len <= 0) {
+        fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+    }
+}
+
+void unimplemented(int client_sock) {
+    const char* reply = "HTTP/1.1 501 Method Not Implemented\r\n\
+                        Content-Type: text/html\r\n\
+                        \r\n\
+                        <HTML>\
+                        <HEAD>\
+                        <TITLE>Method Not Implemented</TITLE>\
+                        </HEAD>\
+                        <BODY>\
+                            <P>HTTP request method not supported.\
                         </BODY>\
                         </HTML>";
 
