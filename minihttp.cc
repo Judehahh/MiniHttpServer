@@ -16,7 +16,7 @@ int get_line(int sock, char *buf, int size);
 void do_http_request(int client_sock);
 void do_http_response(int client_sock, const char* path);
 void not_found(int client_sock);
-void headers(int client_sock, FILE* resource);
+int headers(int client_sock, FILE* resource, const char* statu);
 void cat(int client_sock, FILE* resource);
 void inner_error(int client_sock);
 
@@ -170,10 +170,10 @@ void do_http_response(int client_sock, const char* path) {
     }
 
     //1. 发送http头部
-    headers(client_sock, resource);
+    int ret = headers(client_sock, resource, "200 OK");
 
     //2. 发送http body
-    cat(client_sock, resource);
+    if(!ret) cat(client_sock, resource);
 
     fclose(resource);
 }
@@ -185,11 +185,13 @@ void do_http_response(int client_sock, const char* path) {
  *     resource    - 文件的句柄 
  *返回值： 成功返回0 ，失败返回-1
 ******************************/
-void headers(int client_sock, FILE* resource) {
+int headers(int client_sock, FILE* resource, const char* statu) {
     struct stat st;
     char tmp[64];
     char buf[1024] = {0};
-    strcpy(buf, "HTTP/1.1 200 OK\r\n");
+    char status[64];
+    sprintf(status, "HTTP/1.1 %s\r\n", statu);
+    strcpy(buf, status);
     strcat(buf, "Server: Jude Server\r\n");
     strcat(buf, "Content-Type: text/html\r\n");
     strcat(buf, "Connection: Close\r\n");
@@ -197,6 +199,7 @@ void headers(int client_sock, FILE* resource) {
     if(fstat(fileno(resource), &st) == -1) {
         //内部出错
         inner_error(client_sock);
+        return -1;
     }
 
     snprintf(tmp, 64, "Content_Length: %ld\r\n\r\n", st.st_size);
@@ -206,7 +209,10 @@ void headers(int client_sock, FILE* resource) {
 
     if(send(client_sock, buf, strlen(buf), 0) < 0) {
         fprintf(stderr, "send failed. data: %s, reason: %s\n", buf, strerror(errno));
+        return -1;
     }
+    
+    return 0;
 }
 
 /****************************
@@ -218,6 +224,7 @@ void cat(int client_sock, FILE* resource) {
 
     fgets(buf, sizeof(buf), resource);
     
+    if(debug) fprintf(stdout, "*****sending html*****\n");
     while(!feof(resource)) {
         int len = write(client_sock, buf, strlen(buf));
         
@@ -229,6 +236,7 @@ void cat(int client_sock, FILE* resource) {
         if(debug) fprintf(stdout, "%s", buf);
         fgets(buf, sizeof(buf), resource);
     }
+    if(debug) fprintf(stdout, "*****sending html*****\n");
 }
 
 
@@ -317,7 +325,11 @@ int get_line(int sock, char *buf, int size) {
 }
 
 void not_found(int client_sock) {
-    const char* reply = "HTTP/1.0 404 NOT FOUND\r\n\
+
+    FILE* resource = fopen("./html_docs/404.html", "r");
+
+    if(resource == NULL) {
+        const char* reply = "HTTP/1.1 404 NOT FOUND\r\n\
                         Content-Type: text/html\r\n\
                         \r\n\
                         <HTML>\
@@ -329,15 +341,26 @@ void not_found(int client_sock) {
                         </BODY>\
                         </HTML>";
 
-    int len = write(client_sock, reply, strlen(reply));
+        int len = write(client_sock, reply, strlen(reply));
 
-    if(len <= 0) {
-        fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+        if(len <= 0) {
+            fprintf(stderr, "send reply failed. reason: %s\n", strerror(errno));
+        }
+        return ;
     }
+
+    //1. 发送http头部
+    int ret = headers(client_sock, resource, "404 NOT FOUND");
+
+    //2. 发送http body
+    if(!ret) cat(client_sock, resource);
+
+    fclose(resource);
+
 }
 
 void inner_error(int client_sock) {
-    const char* reply = "HTTP/1.0 500 Internal Sever Error\r\n\
+    const char* reply = "HTTP/1.1 500 Internal Sever Error\r\n\
                         Content-Type: text/html\r\n\
                         \r\n\
                         <HTML>\

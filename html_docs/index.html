@@ -1,10 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="ch">
 <head>
-<meta charset=\"UTF-8\">
-<title>Hello World</title>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello World</title>
+  <style>
+    .container{
+      margin: 300px auto;
+      height: 200px;
+      width: 1000px;
+      font-size: 100px;
+      font-weight: bold;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .twinkle{
+      animation: twinkle .4s infinite;
+    }
+    @keyframes twinkle{
+      0%, 100% {
+        opacity: 0;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+  </style>
 </head>
 <body>
-<p>Hello World!!!</p>
+  <div class="container">
+    <span id="msg" class="msg">HELLO, WORLD!</span><span class="twinkle"> |</span>
+  </div>
+  <script>
+    let msgBox = document.getElementById('msg');
+    setInterval(()=>{
+      msgBox.innerHTML = '';
+      setTimeout(()=>{
+        msgBox.innerHTML = 'H';
+      }, 100)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HE';
+      }, 200)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELL';
+      }, 300)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO';
+      }, 400)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO,';
+      }, 500)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, W';
+      }, 1500)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, WO';
+      }, 1600)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, WOR';
+      }, 1700)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, WORL';
+      }, 1800)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, WORLD';
+      }, 1900)
+      setTimeout(()=>{
+        msgBox.innerHTML = 'HELLO, WORLD!';
+      }, 2000)
+    }, 3000)
+  </script>
 </body>
 </html>
