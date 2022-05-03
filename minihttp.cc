@@ -7,13 +7,14 @@
 #include <ctype.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <pthread.h>
 
 #define SERVER_PORT 8088
 
 static int debug = 1;
 
 int get_line(int sock, char *buf, int size);
-void do_http_request(int client_sock);
+void* do_http_request(void* client_sock);
 void do_http_response(int client_sock, const char* path);
 void bad_request(int client_sock);       //400
 void not_found(int client_sock);        //404
@@ -52,6 +53,8 @@ int main() {
         int client_sock, len, i;
         char client_ip[64];
         char buf[256];
+        pthread_t id;
+        int* pclient_sock = nullptr;
 
         socklen_t client_addr_len = sizeof(client);     //client地址的长度
         client_sock = accept(sock, (struct sockaddr *)&client, &client_addr_len);
@@ -62,12 +65,14 @@ int main() {
                 ntohs(client.sin_port));
 
         //处理http请求
-        do_http_request(client_sock);
+        //do_http_request(client_sock);
         
-        //执行http响应
-        //do_http_response(client_sock);
+        //启动线程，处理http请求
+        pclient_sock = new(int);
+        *pclient_sock = client_sock;
+        pthread_create(&id, NULL, do_http_request, (void*)pclient_sock);
 
-        close(client_sock);
+        //close(client_sock);
     }
 
     close(sock);
@@ -77,11 +82,12 @@ int main() {
 
 
 //读取客户端发送的http请求
-void do_http_request(int client_sock) {
+void* do_http_request(void* pclient_sock) {
     
     int len = 0;
     char buf[256];
     char path[256];
+    int client_sock = *(int*)pclient_sock;
 
     struct stat st;
 
@@ -110,7 +116,7 @@ void do_http_request(int client_sock) {
             }while(len > 0);
             unimplemented(client_sock); //请求未实现
             
-            return ;
+            return nullptr;
         }
 
         //获取协议版本
@@ -142,7 +148,7 @@ void do_http_request(int client_sock) {
         if(stat(path, &st) == -1) {       //文件不存在或出错
             fprintf(stderr, "stat %s failed. reason: %s\n", path, strerror(errno));
             not_found(client_sock);
-            return;
+            return nullptr;
         }
         else {     //文件存在
 
@@ -157,7 +163,7 @@ void do_http_request(int client_sock) {
     } else {
         //400 Bad Request
         bad_request(client_sock);
-        return;
+        return nullptr;
     }
 
     //2. 读取头部字段，直到遇到空行
@@ -166,6 +172,10 @@ void do_http_request(int client_sock) {
         if(debug) printf("read: %s\n", buf);
     } while (len > 0);
 
+    if(pclient_sock) delete pclient_sock;
+    close(client_sock);
+
+    return nullptr;
 }
 
 //响应http请求
@@ -173,7 +183,7 @@ void do_http_response(int client_sock, const char* path) {
 
     FILE* resource = fopen(path, "r");
 
-    if(resource == NULL) {
+    if(resource == nullptr) {
         not_found(client_sock);
         return ;
     }
@@ -357,7 +367,7 @@ void not_found(int client_sock) {
 
     FILE* resource = fopen("./html_docs/404.html", "r");
 
-    if(resource == NULL) {
+    if(resource == nullptr) {
         const char* reply = "HTTP/1.1 404 NOT FOUND\r\n\
 Content-Type: text/html\r\n\
 \r\n\
