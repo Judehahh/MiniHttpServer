@@ -98,59 +98,72 @@ void do_http_request(int client_sock) {
         //获取请求方法
         char* method = buf;
         if(debug) printf("request method: %s\n", method);
+        fprintf(stderr, "WARNING! Other Method!");
+        do {
+            len = get_line(client_sock, buf, sizeof(buf));
+            if(debug) printf("read1: %s\n", buf);
+        }while(len > 0);
+        unimplemented(client_sock); //请求未实现
+        return;
         //只处理get请求
         if(strcasecmp(method, "GET") == 0) {
             if(debug) printf("The request method is GET\n");
-        }
-        else {
-            unimplemented(client_sock); //请求未实现
-            fprintf(stderr, "WARNING! Other Method!");
-        }
-
-        //获取协议版本
-        char* version = strpbrk(url, " \t");
-        *version++ = '\0';
-        version += strspn(version, " \t");
-        //只支持HTTP/1.1
-        if(strcasecmp(version, "HTTP/1.1") == 0) {
-            if(debug) printf((char*)"The http version is: %s\n", version);
-        }
-
-        if(debug) printf("url is: %s\n", url);
-        
-
-        //定位服务器本地的html文件
-        
-        //处理url中的问号
-        char* pos = strchr(url, '?');
-        if(pos) {
-            *pos = '\0';
-            printf("real url: %s\n", url);    
-        }
-
-        sprintf(path, "./html_docs%s", url);
-        if(debug) printf("path: %s\n", path);
-
-        //执行http响应
-        //判断文件是否存在，如果存在就响应200 OK，同时发送相应的html文件，如果不存在，就响应404 NOT FOUND
-        if(stat(path, &st) == -1) {       //文件不存在或出错
-            fprintf(stderr, "stat %s failed. reason: %s\n", path, strerror(errno));
-            not_found(client_sock);
-        }
-        else {     //文件存在
-
-            if(S_ISDIR(st.st_mode)) {   //为一个目录
-                strcat(path, "/index.html");
+                
+            //获取协议版本
+            char* version = strpbrk(url, " \t");
+            *version++ = '\0';
+            version += strspn(version, " \t");
+            //只支持HTTP/1.1
+            if(strcasecmp(version, "HTTP/1.1") == 0) {
+                if(debug) printf((char*)"The http version is: %s\n", version);
             }
 
-            do_http_response(client_sock, path);
-        }
+            if(debug) printf("url is: %s\n", url);
+            
 
-        
-    }
-    else {
+            //定位服务器本地的html文件
+            
+            //处理url中的问号
+            char* pos = strchr(url, '?');
+            if(pos) {
+                *pos = '\0';
+                printf("real url: %s\n", url);    
+            }
+
+            sprintf(path, "./html_docs%s", url);
+            if(debug) printf("path: %s\n", path);
+
+            //执行http响应
+            //判断文件是否存在，如果存在就响应200 OK，同时发送相应的html文件，如果不存在，就响应404 NOT FOUND
+            if(stat(path, &st) == -1) {       //文件不存在或出错
+                fprintf(stderr, "stat %s failed. reason: %s\n", path, strerror(errno));
+                not_found(client_sock);
+                return;
+            }
+            else {     //文件存在
+
+                if(S_ISDIR(st.st_mode)) {   //为一个目录
+                    strcat(path, "/index.html");
+                }
+
+                do_http_response(client_sock, path);
+            }
+
+            
+        }
+        else {
+            fprintf(stderr, "WARNING! Other Method!");
+            do {
+                len = get_line(client_sock, buf, sizeof(buf));
+                if(debug) printf("read1: %s\n", buf);
+            }while(len > 0);
+            unimplemented(client_sock); //请求未实现
+            return;
+        }
+    } else {
         //400 Bad Request
         bad_request(client_sock);
+        return;
     }
 
     //2. 读取头部字段，直到遇到空行
