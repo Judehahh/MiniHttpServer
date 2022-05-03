@@ -103,7 +103,7 @@ void do_http_request(int client_sock) {
             if(debug) printf("The request method is GET\n");
         }
         else {
-            fprintf(stderr, "WARNING! Other Method!");
+            fprintf(stderr, "WARNING! Other Method!\n");
             do {
                 len = get_line(client_sock, buf, sizeof(buf));
                 if(debug) printf("read: %s\n", buf);
@@ -252,20 +252,20 @@ void cat(int client_sock, FILE* resource) {
 void do_http_response(int client_sock) {
 
     const char* main_header = "HTTP/1.1 200 OK\r\n\
-                               Server: Jude Server\r\n\
-                               Content-Type: text/html\r\n\
-                               Connection: Close\r\n";    
+Server: Jude Server\r\n\
+Content-Type: text/html\r\n\
+Connection: Close\r\n";    
 
     const char* welcome_content = "<!DOCTYPE html>\n\
-                                   <html>\n\
-                                   <head>\n\
-                                   <meta charset=\"UTF-8\">\n\
-                                   <title>Hello World</title>\n\
-                                   </head>\n\
-                                   <body>\n\
-                                   <p>Hello World!!!</p>\n\
-                                   </body>\n\
-                                   </html>";
+<html>\n\
+<head>\n\
+<meta charset=\"UTF-8\">\n\
+<title>Hello World</title>\n\
+</head>\n\
+<body>\n\
+<p>Hello World!!!</p>\n\
+</body>\n\
+</html>";
 
     //1. 送main_header
     int len = write(client_sock, main_header, strlen(main_header));
@@ -335,16 +335,16 @@ int get_line(int sock, char *buf, int size) {
 
 void bad_request(int client_sock) {
     const char* reply = "HTTP/1.0 400 BAD REQUEST\r\n\
-                        Content-Type: text/html\r\n\
-                        \r\n\
-                        <HTML>\
-                        <HEAD>\
-                        <TITLE>BAD REQUEST</TITLE>\
-                        </HEAD>\
-                        <BODY>\
-                            <P>Your browser sent a bad request! \
-                        </BODY>\
-                        </HTML>";
+Content-Type: text/html\r\n\
+\r\n\
+<HTML>\
+<HEAD>\
+<TITLE>BAD REQUEST</TITLE>\
+</HEAD>\
+<BODY>\
+<P>Your browser sent a bad request! \
+</BODY>\
+</HTML>";
 
     int len = write(client_sock, reply, strlen(reply));
 
@@ -359,16 +359,16 @@ void not_found(int client_sock) {
 
     if(resource == NULL) {
         const char* reply = "HTTP/1.1 404 NOT FOUND\r\n\
-                        Content-Type: text/html\r\n\
-                        \r\n\
-                        <HTML>\
-                        <HEAD>\
-                        <TITLE>NOT FOUND</TITLE>\
-                        </HEAD>\
-                        <BODY>\
-                            <P>The server could not fulfill your request because the resource specified is unavailable or nonexistent.\
-                        </BODY>\
-                        </HTML>";
+Content-Type: text/html\r\n\
+\r\n\
+<HTML>\
+<HEAD>\
+<TITLE>NOT FOUND</TITLE>\
+</HEAD>\
+<BODY>\
+<P>The server could not fulfill your request because the resource specified is unavailable or nonexistent.\
+</BODY>\
+</HTML>";
 
         int len = write(client_sock, reply, strlen(reply));
 
@@ -390,16 +390,16 @@ void not_found(int client_sock) {
 
 void inner_error(int client_sock) {
     const char* reply = "HTTP/1.1 500 Internal Sever Error\r\n\
-                        Content-Type: text/html\r\n\
-                        \r\n\
-                        <HTML>\
-                        <HEAD>\
-                        <TITLE>Inner Error</TITLE>\
-                        </HEAD>\
-                        <BODY>\
-                            <P>服务器内部出错\
-                        </BODY>\
-                        </HTML>";
+Content-Type: text/html\r\n\
+\r\n\
+<HTML>\
+<HEAD>\
+<TITLE>Inner Error</TITLE>\
+</HEAD>\
+<BODY>\
+    <P>服务器内部出错\
+</BODY>\
+</HTML>";
 
     int len = write(client_sock, reply, strlen(reply));
 
@@ -410,16 +410,16 @@ void inner_error(int client_sock) {
 
 void unimplemented(int client_sock) {
     const char* reply = "HTTP/1.1 501 Method Not Implemented\r\n\
-                        Content-Type: text/html\r\n\
-                        \r\n\
-                        <HTML>\
-                        <HEAD>\
-                        <TITLE>Method Not Implemented</TITLE>\
-                        </HEAD>\
-                        <BODY>\
-                            <P>HTTP request method not supported.\
-                        </BODY>\
-                        </HTML>";
+Content-Type: text/html\r\n\
+\r\n\
+<HTML>\
+<HEAD>\
+<TITLE>Method Not Implemented</TITLE>\
+</HEAD>\
+<BODY>\
+    <P>HTTP request method not supported.\
+</BODY>\
+</HTML>";
 
     int len = write(client_sock, reply, strlen(reply));
 
